@@ -67,7 +67,13 @@ ingestor = create_ingestor(run_mode="batch")
 # ingestion tasks are chainable
 ingestor = (
   ingestor.files(documents)
-  .extract()
+  .extract(
+    # below are the default values, but content types can be controlled
+    extract_text=True,
+    extract_charts=True,
+    extract_tables=True,
+    extract_infographics=True
+  )
   .embed()
   .vdb_upload()
 )
@@ -158,6 +164,7 @@ answer = completion.choices[0].message.content
 print(answer)
 ```
 
+Answer:
 ```
 Cat is the animal whose activity (jumping onto a laptop) matches the location of the typos, so the cat is responsible for the typos in the documents.
 ```
@@ -171,6 +178,7 @@ For example, with apt-get on Ubuntu:
 sudo apt install -y libreoffice
 ```
 
+Example usage:
 ```python
 # docx and pptx files
 documents = [str(Path(f"../data/*{ext}")) for ext in [".pptx", ".docx"]]
