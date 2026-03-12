@@ -91,10 +91,10 @@ Since the ingestion job automatically populated a lancedb table with all these c
 ```
 from nemo_retriever.retriever import Retriever
 
-# uses 
 retriever = Retriever()
 
-hits = retriever.query("What animal is likely responsible for the typos in my document?")
+query = "Given their activities, which animal is responsible for the typos in my documents?"
+hits = retriever.query(query)
 ```
 ```
 # retrieved text from the first page
@@ -108,7 +108,34 @@ hits = retriever.query("What animal is likely responsible for the typos in my do
 
 The above retrieval results are often feedable directly to an LLM for answer generation:
 ```
+from openai import OpenAI
+import os
 
+client = OpenAI(
+  base_url = "https://integrate.api.nvidia.com/v1",
+  api_key = os.environ.get("NVIDIA_API_KEY")
+)
+
+hit_texts = [hit["text"] for hit in hits]
+prompt = f"""
+Given the following retrieved documents, answer the question: {query}
+
+Documents:
+{hit_texts}
+"""
+
+completion = client.chat.completions.create(
+  model="nvidia/nemotron-3-super-120b-a12b",
+  messages=[{"role":"user","content":prompt}],
+  stream=False
+)
+
+answer = completion.choices[0].message.content
+print(answer)
+```
+
+```
+Cat is the animal whose activity (jumping onto a laptop) matches the location of the typos, so the cat is responsible for the typos in the documents.
 ```
 
 5. Ingest other types of content:
