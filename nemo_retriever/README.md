@@ -70,7 +70,7 @@ chunks = ray_dataset.get_dataset().take_all()
 ```
 
 You can inspect how recall accuracy optimized text chunks for various content types were extracted into text representations:
-```
+```python
 # page 1 raw text:
 >>> chunks[0]["text"]
 'TestingDocument\r\nA sample document with headings and placeholder text\r\nIntroduction\r\nThis is a placeholder document that can be used for any purpose. It contains some \r\nheadings and some placeholder text to fill the space. The text is not important and contains \r\nno real value, but it is useful for testing. Below, we will have some simple tables and charts \r\nthat we can use to confirm Ingest is working as expected.\r\nTable 1\r\nThis table describes some animals, and some activities they might be doing in specific \r\nlocations.\r\nAnimal Activity Place\r\nGira@e Driving a car At the beach\r\nLion Putting on sunscreen At the park\r\nCat Jumping onto a laptop In a home o@ice\r\nDog Chasing a squirrel In the front yard\r\nChart 1\r\nThis chart shows some gadgets, and some very fictitious costs.'
@@ -88,7 +88,7 @@ Since the ingestion job automatically populated a lancedb table with all these c
 
 4. Run a recall query and generate an answer using an LLM
 
-```
+```python
 from nemo_retriever.retriever import Retriever
 
 retriever = Retriever()
@@ -96,7 +96,8 @@ retriever = Retriever()
 query = "Given their activities, which animal is responsible for the typos in my documents?"
 hits = retriever.query(query)
 ```
-```
+
+```python
 # retrieved text from the first page
 >>> hits[0]
 {'text': 'TestingDocument\r\nA sample document with headings and placeholder text\r\nIntroduction\r\nThis is a placeholder document that can be used for any purpose. It contains some \r\nheadings and some placeholder text to fill the space. The text is not important and contains \r\nno real value, but it is useful for testing. Below, we will have some simple tables and charts \r\nthat we can use to confirm Ingest is working as expected.\r\nTable 1\r\nThis table describes some animals, and some activities they might be doing in specific \r\nlocations.\r\nAnimal Activity Place\r\nGira@e Driving a car At the beach\r\nLion Putting on sunscreen At the park\r\nCat Jumping onto a laptop In a home o@ice\r\nDog Chasing a squirrel In the front yard\r\nChart 1\r\nThis chart shows some gadgets, and some very fictitious costs.', 'metadata': '{"page_number": 1, "pdf_page": "multimodal_test_1", "page_elements_v3_num_detections": 9, "page_elements_v3_counts_by_label": {"table": 1, "chart": 1, "title": 3, "text": 4}, "ocr_table_detections": 1, "ocr_chart_detections": 1, "ocr_infographic_detections": 0}', 'source': '{"source_id": "/home/dev/projects/NeMo-Retriever/data/multimodal_test.pdf"}', 'page_number': 1, '_distance': 1.5822279453277588}
@@ -107,7 +108,7 @@ hits = retriever.query(query)
 ```
 
 The above retrieval results are often feedable directly to an LLM for answer generation:
-```
+```python
 from openai import OpenAI
 import os
 
@@ -134,7 +135,7 @@ answer = completion.choices[0].message.content
 print(answer)
 ```
 
-```
+```python
 Cat is the animal whose activity (jumping onto a laptop) matches the location of the typos, so the cat is responsible for the typos in the documents.
 ```
 
