@@ -61,7 +61,7 @@ In this procedure, you run the end‑to‑end NeMo Retriever Library pipeline to
 from nemo_retriever import create_ingestor
 from pathlib import Path
 
-documents = [str(Path("../data/test.pdf"))]
+documents = [str(Path("../data/multimodal_test.pdf"))]
 ingestor = create_ingestor(run_mode="batch")
 
 # ingestion tasks are chainable
@@ -158,7 +158,7 @@ answer = completion.choices[0].message.content
 print(answer)
 ```
 
-```python
+```
 Cat is the animal whose activity (jumping onto a laptop) matches the location of the typos, so the cat is responsible for the typos in the documents.
 ```
 
@@ -179,7 +179,7 @@ ingestor = (
   .extract()
 )
 
-# html and text files
+# html and text files - include a split task to prevent texts from exceeding the embedder's max sequence length
 documents = [str(Path(f"../data/*{ext}")) for ext in [".txt", ".html"]]
 ingestor = (
   ingestor.files(documents)
@@ -203,7 +203,20 @@ chunks = ingestor.ingest()
 ```
 
 7. Explore alternate pipeline configuration options:
-VL Embedder
+We support the [Nemotron RAG VL Embedder](https://huggingface.co/nvidia/llama-nemotron-embed-vl-1b-v2)
+
+```python
+ingestor = (
+  ingestor.files(documents)
+  .extract()
+  .embed(
+    model_name="nvidia/llama-nemotron-embed-vl-1b-v2",
+    #works with plain "text"s, "image"s, and "text_image" pairs
+    embed_modality="text_image"  
+  )
+)
+```
+
 Nemotron-Parse
 
 If your documents aren't stored as PDFs, you can point the same NeMo Retriever Library batch pipeline to directories of HTML or plain text files instead. 
