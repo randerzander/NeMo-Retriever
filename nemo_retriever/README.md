@@ -2,17 +2,17 @@
 
 NeMo Retriever Library is a retrieval-augmented generation (RAG) ingestion pipeline for documents that can parse text, tables, charts, and infographics. NeMo Retriever Library parses documents, creates embeddings, optionally stores embeddings in LanceDB, and performs recall evaluation.
 
-This quick start guide shows how to run NeMo Retriever Library in library mode, directly from your application, without Docker. In library mode, NeMo Retriever Library supports two deployment options:
-- Load Hugging Face models locally on your GPU.
-- Use locally deployed NeMo Retriever NIM endpoints for embedding and OCR.
+This quick start guide shows how to run NeMo Retriever Library as a library all within local Python processes without containers. NeMo Retriever Library supports two inference options:
+- Pull and run [Nemotron RAG models from Hugging Face](https://huggingface.co/collections/nvidia/nemotron-rag) on your local GPU(s).
+- Make over the network inference calls to build.nvidia.com hosted or locally deployed NeMo Retriever NIM endpoints.
 
-You’ll set up a CUDA 13–compatible environment, install the library and its dependencies, and run GPU‑accelerated ingestion pipelines that convert PDFs, HTML, plain text, and audio into vector embeddings stored in LanceDB, with optional Ray‑based scaling and built‑in recall benchmarking.
+You’ll set up a CUDA 13–compatible environment, install the library and its dependencies, and run GPU‑accelerated ingestion pipelines that convert PDFs, HTML, plain text, audio, or video into vector embeddings stored in LanceDB (on local disk), with Ray‑based scaling and built‑in recall benchmarking.
 
 ## Prerequisites
 
-> **Warning:** The `online` and `fused` run modes are experimental and not fully supported. They may be incomplete, unstable, or subject to breaking changes. Use `batch` or `inprocess` modes for production workloads.
+> **Note:** `batch` is the primary intended run_mode of operation for this library. Other modes are experimental and subject to change or removal.
 
-Before you start, make sure your system meets the following requirements:
+Before starting, make sure your system meets the following requirements:
 
 - The host is running CUDA 13.x so that `libcudart.so.13` is available.
 - Your GPUs are visible to the system and compatible with CUDA 13.x.
@@ -27,7 +27,7 @@ export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/cuda/lib64
 
 ## Setup your environment
 
-Complete the following steps to setup your environment. You will create and activate isolated Python and project virtual environments, install the NeMo Retriever Library and its CUDA 13–compatible GPU dependencies, and then run the ingestion, benchmarking, and audio pipelines to validate the full setup.
+Complete the following steps to setup your environment. You will create and activate isolated Python and project virtual environments, install the NeMo Retriever Library and its dependencies, and then run the provided ingestion snippets to validate your setup.
 
 1. Create and activate the NeMo Retriever Library environment
 
@@ -36,28 +36,13 @@ Before installing NeMo Retriever Library, create an isolated Python environment 
 In your terminal, run the following commands from any location.
 
 ```bash
-uv venv .nemotron-ocr-test --python 3.12
-source .nemotron-ocr-test/bin/activate
-uv pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple nemo-retriever
+uv venv retriever --python 3.12
+source retriever/bin/activate
+uv pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple nemo-retriever==26.3.0rc2 nv-ingest-client==26.3.0rc2 nv-ingest==26.3.0rc2 nv-ingest-api==26.3.0rc2
 ```
 This creates a dedicated Python environment and installs the `nemo-retriever` PyPI package, the canonical distribution for the NeMo Retriever Library.
 
-2. Install NeMo Retriever Library and Dependencies
-
-Install the latest nightly builds of the NeMo Retriever Library so you can test the most recent features and fixes before they are rolled into a stable release. 
-
-In this step, you install the core library, its API layer, and the client package, ensuring the ingestion pipeline and related tooling all come from a consistent, up‑to‑date version set.
-
-In your terminal, run the following commands from any location.
-
-
-```bash
-uv pip install -i https://test.pypi.org/simple nemo-retriever==2026.3.3.dev20260303 nemo-retriever-api==2026.3.3.dev20260303 nemo-retriever-client==2026.3.3.dev20260303 --no-deps
-uv pip install nemo-retriever nemo-retriever-api nemo-retriever-client
-```
-These packages provide the ingestion pipeline and APIs used by NeMo Retriever Library until everything is consolidated under the single `nemo-retriever` surface.
-
-3. Install CUDA 13 builds of Torch and Torchvision
+2. Install CUDA 13 builds of Torch and Torchvision
 
 To ensure NeMo Retriever Library’s OCR and GPU‑accelerated components run correctly on your system, you need PyTorch and TorchVision builds that are compiled for CUDA 13. In this step, you uninstall any existing Torch/TorchVision packages and reinstall them from a dedicated CUDA 13.0 wheel index so they link against the same CUDA runtime as the rest of your pipeline.
 
@@ -69,54 +54,23 @@ uv pip install torch==2.9.1 torchvision -i https://download.pytorch.org/whl/cu13
 ```
 This ensures the OCR and GPU‑accelerated components in NeMo Retriever Library run against the right CUDA runtime.
 
-4. Set up the NeMo Retriever Library project environment
+3. Run the pipeline on PDFs
 
-For local development, you need a project-scoped environment tied directly to the NeMo Retriever Library source tree. 
-
-In this step, you create a virtual environment in the repo itself and install the `nemo_retriever` package in editable mode so you can run examples, tweak the code, and pick up changes without reinstallation.
-
-Run the following code from the NeMo Retriever Library repo root (NVIDIA/NeMo-Retriever).
-
-```bash
-cd /path/to/NeMo-Retriever
-uv venv .retriever
-source .retriever/bin/activate
-uv pip install -e ./nemo_retriever
-```
-This creates a project-local environment and installs the `nemo_retriever` Python package in editable mode for running the examples.
-
-5. Run the batch pipeline on PDFs
-
-In this procedure, you run the end‑to‑end NeMo Retriever Library batch pipeline to ingest a collection of PDFs and generate embeddings for them. Pointing the script at a directory of PDF files lets the pipeline handle parsing, OCR, embedding, optional LanceDB upload, and (if configured) recall evaluation in a single command.
+In this procedure, you run the end‑to‑end NeMo Retriever Library pipeline to ingest a collection of test PDFs.
 
 Run the batch pipeline script and point it at the directory that contains your PDFs using the following command.
 
 ```bash
-uv run python nemo_retriever/src/nemo_retriever/examples/batch_pipeline.py /path/to/pdfs
+python test_examples/default_pipeline.py
 ```
 
-The first positional argument is the `input-dir`, the directory with the PDF files to ingest.
+4. Run a recall query and generate an answer using an LLM
 
-For recall evaluation, the pipeline uses bo767_query_gt.csv from the current working directory by default; you can override this by running the following command.
+5. Ingest other types of content:
 
-```bash
-uv run python nemo_retriever/src/nemo_retriever/examples/batch_pipeline.py /path/to/pdfs \
-  --query-csv /path/to/custom_query_gt.csv
-```
-
-If the specified query CSV does not exist, recall evaluation is skipped automatically and only the ingestion process runs.
-
-By default, the pipeline prints per‑query details (query text, gold answers, and hits); use `--no-recall-details` to show only the missed‑gold summary and overall recall metrics.
-
-To reuse an existing Ray cluster, append --ray-address using the following command.
-
-```bash
---ray-address auto
-```
-
-By doing this the pipeline connects to the running Ray deployment instead of starting a new one.
-
-6. Ingest HTML or plain text instead of PDFs
+6. Explore alternate pipeline configuration options:
+VL Embedder
+Nemotron-Parse
 
 If your documents aren't stored as PDFs, you can point the same NeMo Retriever Library batch pipeline to directories of HTML or plain text files instead. 
 
