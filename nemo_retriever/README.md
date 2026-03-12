@@ -54,7 +54,9 @@ uv pip install torch==2.9.1 torchvision -i https://download.pytorch.org/whl/cu13
 ```
 This ensures the OCR and GPU‑accelerated components in NeMo Retriever Library run against the right CUDA runtime.
 
-3. Run the pipeline on PDFs
+3. Run the pipeline on the [multimodal_test PDF](../data/multimodal_test.pdf), which contains text, tables, charts, and images.
+
+Note: The examples below are tested with [example files from this repositry](../data/).
 
 In this procedure, you run the end‑to‑end NeMo Retriever Library pipeline to ingest a collection of test PDFs:
 ```python
