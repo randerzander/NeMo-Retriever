@@ -202,8 +202,9 @@ ingestor = ingestor.files([str(INPUT_AUDIO)]).extract_audio()
 chunks = ingestor.ingest()
 ```
 
-7. Explore alternate pipeline configuration options:
-We support the [Nemotron RAG VL Embedder](https://huggingface.co/nvidia/llama-nemotron-embed-vl-1b-v2)
+7. Explore Different Pipeline Options:
+
+You can use the [Nemotron RAG VL Embedder](https://huggingface.co/nvidia/llama-nemotron-embed-vl-1b-v2)
 
 ```python
 ingestor = (
@@ -217,56 +218,20 @@ ingestor = (
 )
 ```
 
-Nemotron-Parse
+You can use a different ingestion pipeline based on [Nemotron-Parse](https://huggingface.co/nvidia/NVIDIA-Nemotron-Parse-v1.2) combined with the default embedder:
+```python
+ingestor = create_ingestor(run_mode="inprocess")
+ingestor = ingestor.files(documents).extract(
+  method="pdfium",
+  batch_tuning={
+    "nemotron_parse_workers": float(1),
+    "gpu_nemotron_parse": float(1),
+    "nemotron_parse_batch_size": float(1)
+  }
+)
 
-If your documents aren't stored as PDFs, you can point the same NeMo Retriever Library batch pipeline to directories of HTML or plain text files instead. 
-
-In this step, you either pass an input‑type flag to the batch example for a simple one‑shot run, or use a staged HTML CLI flow for more control over each phase of ingestion.
-
-To run the batch example directly on HTML or plain text, use one of the following commands in your terminal.
-
-```bash
-uv run python nemo_retriever/src/nemo_retriever/examples/batch_pipeline.py <dir> --input-type html
+chunks = ingestor.ingest()
 ```
-or
-
-```bash
-uv run python nemo_retriever/src/nemo_retriever/examples/batch_pipeline.py <dir> --input-type txt
-```
-Pass the directory that contains your PDFs as the first argument (`input-dir`). For recall evaluation, the pipeline uses `bo767_query_gt.csv` in the current directory by default; override with `--query-csv <path>`. For document-level recall, use `--recall-match-mode pdf_only` with `query,expected_pdf` data. Recall is skipped if the query file does not exist. By default, per-query details (query, gold, hits) are printed; use `--no-recall-details` to print only the missed-gold summary and recall metrics. To use an existing Ray cluster, pass `--ray-address auto`. If OCR fails with a missing `libcudart.so.13`, install the CUDA 13 runtime and set `LD_LIBRARY_PATH` as shown above.
-
-Use `--input-type html` for HTML files and `--input-type txt` for plain text.  HTML inputs are converted to markdown using the same tokenizer and chunking strategy used for `.txt` ingestion.
-
-For more step‑by‑step control with HTML, use the following staged HTML CLI flow commands instead.
-
-```bash
-retriever html run --input-dir <dir>
-retriever local stage5 run --input-dir <dir> --pattern "*.html_extraction.json"
-retriever local stage6 run --input-dir <dir>
-```
-`retriever html run` parses the HTML and writes `*.html_extraction.json` sidecar files into the input directory. `retriever local stage5 run` performs downstream processing over those JSON files, and `retriever local stage6 run` completes the final ingestion stages, such as embedding and optional upload, using the same core extraction pipeline.
-
-- Config files:
-  - `nemo_retriever/harness/test_configs.yaml`
-  - `nemo_retriever/harness/nightly_config.yaml`
-- CLI entrypoint is nested under `retriever harness`.
-- First pass is LanceDB-only and enforces recall-required pass/fail by default.
-- Single-run artifact directories default to `<dataset>_<timestamp>`.
-- Dataset-specific recall adapters are supported via config:
-  - `recall_adapter: none` (default passthrough)
-  - `recall_adapter: page_plus_one` (convert zero-indexed `page` CSVs to `pdf_page`)
-  - `recall_adapter: financebench_json` (convert FinanceBench JSON to `query,expected_pdf`)
-  - `recall_match_mode: pdf_page|pdf_only` controls recall matching mode.
-- Dataset presets configured under `/datasets/nv-ingest/...` will fall back to `/raid/$USER/...` when the dataset is not present in `/datasets`.
-- Relative `query_csv` entries in harness YAML resolve from the config file directory first, then fall back to the repo root.
-- The default `financebench` dataset preset now points at `data/financebench_train.json` and enables recall out of the box.
-
-After you’ve finished installing and configuring NeMo Retriever Library, it's a good idea to validate the entire pipeline with a small, known dataset. In this step, you run the batch pipeline module against the sample `bo20` dataset to confirm that ingestion, OCR under CUDA 13, embedding, and any configured recall evaluation all run end‑to‑end without errors.
-
-```bash
-uv run python -m nemo_retriever.examples.batch_pipeline /datasets/nemo-retriever/bo20
-```
-This uses the module form of the NeMo Retriever Library batch pipeline example and points it at a sample dataset directory, verifying both ingestion and OCR under CUDA 13.
 
 7. Ingest image files
 
