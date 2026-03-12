@@ -63,8 +63,15 @@ from pathlib import Path
 
 documents = [str(Path("../data/test.pdf"))]
 ingestor = create_ingestor(run_mode="batch")
+
+# ingestion tasks are chainable
 ingestor = (
-  ingestor.files(documents)                                                                                                                                                                               .extract()                                                                                                                                                                                              .embed()                                                                                                                                                                                                .vdb_upload()                                                                                                                                                                                         )
+  ingestor.files(documents)
+  .extract()
+  .embed()
+  .vdb_upload()                                                                                                                                                                                         )
+
+# results are returned as a ray dataset and inspectable as chunks
 ray_dataset = ingestor.ingest()
 chunks = ray_dataset.get_dataset().take_all()
 ```
@@ -91,9 +98,17 @@ Since the ingestion job automatically populated a lancedb table with all these c
 ```python
 from nemo_retriever.retriever import Retriever
 
-retriever = Retriever()
+retriever = Retriever(
+  # default values
+  lancedb_uri="lancedb",
+  lancedb_table="nv-ingest",
+  embedder="nvidia/llama-3.2-nv-embedqa-1b-v2",
+  top_k=5
+)
 
 query = "Given their activities, which animal is responsible for the typos in my documents?"
+
+# you can also submit a list with retriever.queries[...]
 hits = retriever.query(query)
 ```
 
@@ -107,7 +122,14 @@ hits = retriever.query(query)
 {'text': '| Table | 1 |\n| This | table | describes | some | animals, | and | some | activities | they | might | be | doing | in | specific |\n| locations. |\n| Animal | Activity | Place |\n| Giraffe | Driving | a | car | At | the | beach |\n| Lion | Putting | on | sunscreen | At | the | park |\n| Cat | Jumping | onto | a | laptop | In | a | home | office |\n| Dog | Chasing | a | squirrel | In | the | front | yard |\n| Chart | 1 |', 'metadata': '{"page_number": 1, "pdf_page": "multimodal_test_1", "page_elements_v3_num_detections": 9, "page_elements_v3_counts_by_label": {"table": 1, "chart": 1, "title": 3, "text": 4}, "ocr_table_detections": 1, "ocr_chart_detections": 1, "ocr_infographic_detections": 0}', 'source': '{"source_id": "/home/dev/projects/NeMo-Retriever/data/multimodal_test.pdf"}', 'page_number': 1, '_distance': 1.614684820175171}
 ```
 
-The above retrieval results are often feedable directly to an LLM for answer generation:
+The above retrieval results are often feedable directly to an LLM for answer generation.
+
+To do so, first install the openai client and set your [build.nvidia.com](https://build.nvidia.com/) API key:
+```bash
+uv pip install -y openai
+export NVIDIA_API_KEY=nvapi-...
+```
+
 ```python
 from openai import OpenAI
 import os
@@ -141,7 +163,13 @@ Cat is the animal whose activity (jumping onto a laptop) matches the location of
 
 5. Ingest other types of content:
 
-6. Explore alternate pipeline configuration options:
+```python
+
+```
+
+Audio and Video
+
+7. Explore alternate pipeline configuration options:
 VL Embedder
 Nemotron-Parse
 
