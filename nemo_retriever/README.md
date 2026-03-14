@@ -254,44 +254,11 @@ ingestor = (
 
 You can use a different ingestion pipeline based on [Nemotron-Parse](https://huggingface.co/nvidia/NVIDIA-Nemotron-Parse-v1.2) combined with the default embedder:
 ```python
-ingestor = create_ingestor(run_mode="inprocess")
-ingestor = ingestor.files(documents).extract(
-  method="pdfium",
-  batch_tuning={
-    "nemotron_parse_workers": float(1),
-    "gpu_nemotron_parse": float(1),
-    "nemotron_parse_batch_size": float(1)
-  }
-)
+ingestor = create_ingestor(run_mode="batch")
+ingestor = ingestor.files(documents).extract(method="nemotron_parse")
 
-chunks = ingestor.ingest()
-```
-
-
-
-All `ExtractParams` options (`extract_text`, `extract_tables`, `extract_charts`, `extract_infographics`) apply to image ingestion.
-
-### Render one document as markdown
-
-If you want a readable page-by-page markdown view of a single in-process result, pass the
-single-document result from `results[0]` to `nemo_retriever.io.to_markdown`.
-
-```python
-from nemo_retriever import create_ingestor
-from nemo_retriever.io import to_markdown
-
-ingestor = (
-    create_ingestor(run_mode="inprocess")
-    .files("data/multimodal_test.pdf")
-    .extract(
-        extract_text=True,
-        extract_tables=True,
-        extract_charts=True,
-        extract_infographics=True,
-    )
-)
-results = ingestor.ingest()
-print(to_markdown(results[0]))
+ray_dataset = ingestor.ingest()
+chunks = ray_dataset.get_dataset().take_all()
 ```
 
 ## Ray cluster setup
