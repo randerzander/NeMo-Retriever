@@ -261,7 +261,7 @@ ray_dataset = ingestor.ingest()
 chunks = ray_dataset.get_dataset().take_all()
 ```
 
-## Run without a local GPU, on build.nvidia.com or self hosted NIMs
+## Run with remote inference, no local GPU required:
 
 For build.nvidia.com hosted inference, make sure you have NVIDIA_API_KEY set as an environment variable. 
 
