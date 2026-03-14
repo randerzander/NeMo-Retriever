@@ -67,7 +67,7 @@ from pathlib import Path
 documents = [str(Path("../data/multimodal_test.pdf"))]
 ingestor = create_ingestor(run_mode="batch")
 
-# ingestion tasks are chainable
+# ingestion tasks are chainable and defined lazily
 ingestor = (
   ingestor.files(documents)
   .extract(
@@ -81,6 +81,7 @@ ingestor = (
   .vdb_upload()
 )
 
+# ingestor.ingest() actually executes the pipeline
 # results are returned as a ray dataset and inspectable as chunks
 ray_dataset = ingestor.ingest()
 chunks = ray_dataset.get_dataset().take_all()
@@ -104,6 +105,7 @@ You can inspect how recall accuracy optimized text chunks for various content ty
 # markdown formatting for full pages or documents:
 >>> to_markdown_by_page(chunks).keys()
 dict_keys([1, 2, 3])
+
 >>> to_markdown_by_page(chunks)[1]
 '## Page 1\n\nTestingDocument\r\nA sample document with headings and placeholder text\r\nIntroduction\r\nThis is a placeholder document that can be used for any purpose. It contains some \r\nheadings and some placeholder text to fill the space. The text is not important and contains \r\nno real value, but it is useful for testing. Below, we will have some simple tables and charts \r\nthat we can use to confirm Ingest is working as expected.\r\nTable 1\r\nThis table describes some animals, and some activities they might be doing in specific \r\nlocations.\r\nAnimal Activity Place\r\nGira@e Driving a car At the beach\r\nLion Putting on sunscreen At the park\r\nCat Jumping onto a laptop In a home o@ice\r\nDog Chasing a squirrel In the front yard\r\nChart 1\r\nThis chart shows some gadgets, and some very fictitious costs.\n\n| This | table | describes | some | animals, | and | some | activities | they | might | be | doing | in | specific |\n| locations. |\n| Animal | Activity | Place |\n| Giraffe | Driving | a | car | At | the | beach |\n| Lion | Putting | on | sunscreen | At | the | park |\n| Cat | Jumping | onto | a | laptop | In | a | home | office |\n| Dog | Chasing | a | squirrel | In | the | front | yard |\n| Chart | 1 |\n\nChart 1 This chart shows some gadgets, and some very fictitious costs...'
 
@@ -232,8 +234,6 @@ sudo apt install -y ffmpeg
 ```python
 ingestor = create_ingestor(run_mode="batch")
 ingestor = ingestor.files([str(INPUT_AUDIO)]).extract_audio()
-
-chunks = ingestor.ingest()
 ```
 
 ### Explore Different Pipeline Options:
@@ -254,11 +254,7 @@ ingestor = (
 
 You can use a different ingestion pipeline based on [Nemotron-Parse](https://huggingface.co/nvidia/NVIDIA-Nemotron-Parse-v1.2) combined with the default embedder:
 ```python
-ingestor = create_ingestor(run_mode="batch")
 ingestor = ingestor.files(documents).extract(method="nemotron_parse")
-
-ray_dataset = ingestor.ingest()
-chunks = ray_dataset.get_dataset().take_all()
 ```
 
 ## Run with remote inference, no local GPU required:
@@ -282,9 +278,6 @@ ingestor = (
   )
   .vdb_upload()
 )
-
-ray_dataset = ingestor.ingest()
-chunks = ray_dataset.get_dataset().take_all()
 ```
 
 ## Ray cluster setup
