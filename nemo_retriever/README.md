@@ -61,6 +61,7 @@ The [test PDF](../data/multimodal_test.pdf) contains text, tables, charts, and i
 ### Ingest a test pdf
 ```python
 from nemo_retriever import create_ingestor
+from nemo_retriever.io import to_markdown, to_markdown_by_page
 from pathlib import Path
 
 documents = [str(Path("../data/multimodal_test.pdf"))]
@@ -90,15 +91,24 @@ You can inspect how recall accuracy optimized text chunks for various content ty
 ```python
 # page 1 raw text:
 >>> chunks[0]["text"]
-'TestingDocument\r\nA sample document with headings and placeholder text\r\nIntroduction\r\nThis is a placeholder document that can be used for any purpose. It contains some \r\nheadings and some placeholder text to fill the space. The text is not important and contains \r\nno real value, but it is useful for testing. Below, we will have some simple tables and charts \r\nthat we can use to confirm Ingest is working as expected.\r\nTable 1\r\nThis table describes some animals, and some activities they might be doing in specific \r\nlocations.\r\nAnimal Activity Place\r\nGira@e Driving a car At the beach\r\nLion Putting on sunscreen At the park\r\nCat Jumping onto a laptop In a home o@ice\r\nDog Chasing a squirrel In the front yard\r\nChart 1\r\nThis chart shows some gadgets, and some very fictitious costs.'
+'TestingDocument\r\nA sample document with headings and placeholder text\r\nIntroduction\r\nThis is a placeholder document that can be used for any purpose...'
 
-# a table from the first page
+# markdown formatted table from the first page
 >>> chunks[1]["text"]
 '| Table | 1 |\n| This | table | describes | some | animals, | and | some | activities | they | might | be | doing | in | specific |\n| locations. |\n| Animal | Activity | Place |\n| Giraffe | Driving | a | car | At | the | beach |\n| Lion | Putting | on | sunscreen | At | the | park |\n| Cat | Jumping | onto | a | laptop | In | a | home | office |\n| Dog | Chasing | a | squirrel | In | the | front | yard |\n| Chart | 1 |'
 
 # a chart from the first page
 >>> chunks[2]["text"]
 'Chart 1\nThis chart shows some gadgets, and some very fictitious costs.\nGadgets and their cost\n$160.00\n$140.00\n$120.00\n$100.00\nDollars\n$80.00\n$60.00\n$40.00\n$20.00\n$-\nPowerdrill\nBluetooth speaker\nMinifridge\nPremium desk fan\nHammer\nCost'
+
+# markdown formatting for full pages or documents:
+>>> to_markdown_by_page(chunks).keys()
+dict_keys([1, 2, 3])
+>>> to_markdown_by_page(chunks)[1]
+'## Page 1\n\nTestingDocument\r\nA sample document with headings and placeholder text\r\nIntroduction\r\nThis is a placeholder document that can be used for any purpose. It contains some \r\nheadings and some placeholder text to fill the space. The text is not important and contains \r\nno real value, but it is useful for testing. Below, we will have some simple tables and charts \r\nthat we can use to confirm Ingest is working as expected.\r\nTable 1\r\nThis table describes some animals, and some activities they might be doing in specific \r\nlocations.\r\nAnimal Activity Place\r\nGira@e Driving a car At the beach\r\nLion Putting on sunscreen At the park\r\nCat Jumping onto a laptop In a home o@ice\r\nDog Chasing a squirrel In the front yard\r\nChart 1\r\nThis chart shows some gadgets, and some very fictitious costs.\n\n| This | table | describes | some | animals, | and | some | activities | they | might | be | doing | in | specific |\n| locations. |\n| Animal | Activity | Place |\n| Giraffe | Driving | a | car | At | the | beach |\n| Lion | Putting | on | sunscreen | At | the | park |\n| Cat | Jumping | onto | a | laptop | In | a | home | office |\n| Dog | Chasing | a | squirrel | In | the | front | yard |\n| Chart | 1 |\n\nChart 1 This chart shows some gadgets, and some very fictitious costs...'
+
+# full document markdown
+>>> to_markdown(chunks)
 ```
 
 Since the ingestion job automatically populated a lancedb table with all these chunks, you can use queries to retrieve semantically relevant chunks for feeding directly into an LLM:
@@ -113,7 +123,8 @@ retriever = Retriever(
   lancedb_uri="lancedb",
   lancedb_table="nv-ingest",
   embedder="nvidia/llama-3.2-nv-embedqa-1b-v2",
-  top_k=5
+  top_k=5,
+  reranker=False
 )
 
 query = "Given their activities, which animal is responsible for the typos in my documents?"
@@ -219,7 +230,7 @@ sudo apt install -y ffmpeg
 ```
 
 ```python
-ingestor = create_ingestor(run_mode="inprocess")
+ingestor = create_ingestor(run_mode="batch")
 ingestor = ingestor.files([str(INPUT_AUDIO)]).extract_audio()
 
 chunks = ingestor.ingest()
