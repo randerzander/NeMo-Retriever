@@ -76,7 +76,7 @@ For production-level performance and scalability, we recommend that you deploy t
 For small-scale workloads, such as workloads of fewer than 100 PDFs, you can use our library setup which works with HuggingFace models on local GPUs or with NIMs hosted on build.nvidia.com.
 
 After [following the installation steps](nemo_retriever), you can start ingesting content like with the following snippet:
-```
+```python
 from nemo_retriever import create_ingestor
 from nemo_retriever.io import to_markdown, to_markdown_by_page
 from pathlib import Path
@@ -106,28 +106,34 @@ chunks = ray_dataset.get_dataset().take_all()
 
 You can see the extracted text that represents the content of the ingested test document.
 
-```shell
-Starting ingestion..
-Total time: 9.243880033493042 seconds
+```python
+# page 1 raw text:
+>>> chunks[0]["text"]
+'TestingDocument\r\nA sample document with headings and placeholder text\r\nIntroduction\r\nThis is a placeholder document that can be used for any purpose...'
 
-TestingDocument
-A sample document with headings and placeholder text
-Introduction
-This is a placeholder document that can be used for any purpose. It contains some 
-headings and some placeholder text to fill the space. The text is not important and contains 
-no real value, but it is useful for testing. Below, we will have some simple tables and charts 
-that we can use to confirm Ingest is working as expected.
-Table 1
-This table describes some animals, and some activities they might be doing in specific 
-locations.
-Animal Activity Place
-Gira@e Driving a car At the beach
-Lion Putting on sunscreen At the park
-Cat Jumping onto a laptop In a home o@ice
-Dog Chasing a squirrel In the front yard
-Chart 1
-This chart shows some gadgets, and some very fictitious costs.
-... document extract continues ...
+# markdown formatted table from the first page
+>>> chunks[1]["text"]
+'| Table | 1 |\n| This | table | describes | some | animals, | and | some | activities | they | might | be | doing | in | specific |\n| locations. |\n| Animal | Activity | Place |\n| Giraffe | Driving | a | car | At | the | beach |\n| Lion | Putting | on | sunscreen | At | the | park |\n| Cat | Jumping | onto | a | laptop | In | a | home | office |\n| Dog | Chasing | a | squirrel | In | the | front | yard |\n| Chart | 1 |'
+
+# a chart from the first page
+>>> chunks[2]["text"]
+'Chart 1\nThis chart shows some gadgets, and some very fictitious costs.\nGadgets and their cost\n$160.00\n$140.00\n$120.00\n$100.00\nDollars\n$80.00\n$60.00\n$40.00\n$20.00\n$-\nPowerdrill\nBluetooth speaker\nMinifridge\nPremium desk fan\nHammer\nCost'
+
+# markdown formatting for full pages or documents:
+# document results are keyed by source filename
+>>> to_markdown_by_page(chunks).keys()
+dict_keys(['multimodal_test.pdf'])
+
+# results per document are keyed by page number
+>>> to_markdown_by_page(chunks)["multimodal_test.pdf"].keys()
+dict_keys([1, 2, 3])
+
+>>> to_markdown_by_page(chunks)["multimodal_test.pdf"][1]
+'TestingDocument\r\nA sample document with headings and placeholder text\r\nIntroduction\r\nThis is a placeholder document that can be used for any purpose. It contains some \r\nheadings and some placeholder text to fill the space. The text is not important and contains \r\nno real value, but it is useful for testing. Below, we will have some simple tables and charts \r\nthat we can use to confirm Ingest is working as expected.\r\nTable 1\r\nThis table describes some animals, and some activities they might be doing in specific \r\nlocations.\r\nAnimal Activity Place\r\nGira@e Driving a car At the beach\r\nLion Putting on sunscreen At the park\r\nCat Jumping onto a laptop In a home o@ice\r\nDog Chasing a squirrel In the front yard\r\nChart 1\r\nThis chart shows some gadgets, and some very fictitious costs.\n\n| This | table | describes | some | animals, | and | some | activities | they | might | be | doing | in | specific |\n| locations. |\n| Animal | Activity | Place |\n| Giraffe | Driving | a | car | At | the | beach |\n| Lion | Putting | on | sunscreen | At | the | park |\n| Cat | Jumping | onto | a | laptop | In | a | home | office |\n| Dog | Chasing | a | squirrel | In | the | front | yard |\n| Chart | 1 |\n\nChart 1 This chart shows some gadgets, and some very fictitious costs. Gadgets and their cost $160.00 $140.00 $120.00 $100.00 Dollars $80.00 $60.00 $40.00 $20.00 $- Powerdrill Bluetooth speaker Minifridge Premium desk fan Hammer Cost\n\n### Table 1\n\n| This | table | describes | some | animals, | and | some | activities | they | might | be | doing | in | specific |\n| locations. |\n| Animal | Activity | Place |\n| Giraffe | Driving | a | car | At | the | beach |\n| Lion | Putting | on | sunscreen | At | the | park |\n| Cat | Jumping | onto | a | laptop | In | a | home | office |\n| Dog | Chasing | a | squirrel | In | the | front | yard |\n| Chart | 1 |\n\n### Chart 1\n\nChart 1 This chart shows some gadgets, and some very fictitious costs. Gadgets and their cost $160.00 $140.00 $120.00 $100.00 Dollars $80.00 $60.00 $40.00 $20.00 $- Powerdrill Bluetooth speaker Minifridge Premium desk fan Hammer Cost\n\n### Table 2\n\n| This | table | describes | some | animals, | and | some | activities | they | might | be | doing | in | specific |\n| locations. |\n| Animal | Activity | Place |\n| Giraffe | Driving | a | car | At | the | beach |\n| Lion | Putting | on | sunscreen | At | the | park |\n| Cat | Jumping | onto | a | laptop | In | a | home | office |\n| Dog | Chasing | a | squirrel | In | the | front | yard |\n| Chart | 1 |\n\n### Chart 2\n\nChart 1 This chart shows some gadgets, and some very fictitious costs. Gadgets and their cost $160.00 $140.00 $120.00 $100.00 Dollars $80.00 $60.00 $40.00 $20.00 $- Powerdrill Bluetooth speaker Minifridge Premium desk fan Hammer Cost\n\n### Table 3\n\n| This | table | describes | some | animals, | and | some | activities | they | might | be | doing | in | specific |\n| locations. |\n| Animal | Activity | Place |\n| Giraffe | Driving | a | car | At | the | beach |\n| Lion | Putting | on | sunscreen | At | the | park |\n| Cat | Jumping | onto | a | laptop | In | a | home | office |\n| Dog | Chasing | a | squirrel | In | the | front | yard |\n| Chart | 1 |\n\n### Chart 3\n\nChart 1 This chart shows some gadgets, and some very fictitious costs. Gadgets and their cost $160.00 $140.00 $120.00 $100.00 Dollars $80.00 $60.00 $40.00 $20.00 $- Powerdrill Bluetooth speaker Minifridge Premium desk fan Hammer Cost'
+
+# full document markdown also keyed by source filename
+>>> to_markdown(chunks).keys()
+dict_keys(['multimodal_test.pdf'])
 ```
 
 ### Step 3: Query Ingested Content
