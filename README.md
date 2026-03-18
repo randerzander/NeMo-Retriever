@@ -6,11 +6,9 @@ SPDX-License-Identifier: Apache-2.0
 
 **Important: The default branch is main, which tracks active development and may be ahead of the latest supported release.**
 
-For the latest stable release:
+For the latest stable release use the [release/26.03 branch](https://github.com/NVIDIA/NeMo-Retriever/tree/26.03).
 
-Use the latest release/* branch (for example, release/26.03) from the branch dropdown.
-
-See the corresponding NeMo Retriever Library documentation at https://docs.nvidia.com/nemo/retriever/latest/extraction/overview/
+See the corresponding [NeMo Retriever Library documentation](https://docs.nvidia.com/nemo/retriever/latest/extraction/overview/).
 
 # NeMo Retriever Library
 
