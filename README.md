@@ -71,11 +71,11 @@ For more information, refer to the [NeMo Retriever Library documentation](https:
 For production-level performance and scalability, we recommend that you deploy the pipeline and supporting NIMs by using Kubernetes ([helm charts](helm)). For more information, refer to [prerequisites](https://docs.nvidia.com/nv-ingest/user-guide/getting-started/prerequisites).
 
 
-## Library Quickstart
+## Typical Library Use
 
 For small-scale workloads, such as workloads of fewer than 100 PDFs, you can use our library setup which works with HuggingFace models on local GPUs or with NIMs hosted on build.nvidia.com.
 
-After [following the installation steps](nemo_retriever), you can start ingesting content like with the following snippet:
+After [following the quickstart installation steps](nemo_retriever), you can start ingesting content like with the following snippet:
 ```python
 from nemo_retriever import create_ingestor
 from nemo_retriever.io import to_markdown, to_markdown_by_page
