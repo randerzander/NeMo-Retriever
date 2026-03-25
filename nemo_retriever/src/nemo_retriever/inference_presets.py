@@ -80,9 +80,6 @@ def resolve_inference_preset(
     key = inference.strip().lower()
     if key not in _PRESETS:
         known = ", ".join(sorted(_PRESETS))
-        raise ValueError(
-            f"Unknown inference preset {inference!r}.  "
-            f"Supported values: {known}"
-        )
+        raise ValueError(f"Unknown inference preset {inference!r}.  " f"Supported values: {known}")
     extract_defaults, embed_defaults, caption_defaults = _PRESETS[key]
     return dict(extract_defaults), dict(embed_defaults), dict(caption_defaults)
