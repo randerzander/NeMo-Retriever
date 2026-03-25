@@ -31,11 +31,13 @@ _BUILD_NVIDIA_EXTRACT_DEFAULTS: Dict[str, Any] = {
     "graphic_elements_invoke_url": "https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-graphic-elements-v1",
     "ocr_invoke_url": "https://ai.api.nvidia.com/v1/cv/nvidia/nemoretriever-ocr-v1",
     "table_structure_invoke_url": "https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-table-structure-v1",
+    "nemotron_parse_invoke_url": "https://integrate.api.nvidia.com/v1/chat/completions",
+    "nemotron_parse_model_name": "nvidia/nemotron-parse",
 }
 
 _BUILD_NVIDIA_EMBED_DEFAULTS: Dict[str, Any] = {
     "embed_invoke_url": "https://integrate.api.nvidia.com/v1/embeddings",
-    "model_name": "nvidia/llama-nemotron-embed-1b-v2",
+    "model_name": "nvidia/llama-nemotron-embed-vl-1b-v2",
     "embed_modality": "text",
 }
 

@@ -51,11 +51,13 @@ class TestResolveInferencePreset:
         assert extract["table_structure_invoke_url"] == (
             "https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-table-structure-v1"
         )
+        assert extract["nemotron_parse_invoke_url"] == "https://integrate.api.nvidia.com/v1/chat/completions"
+        assert extract["nemotron_parse_model_name"] == "nvidia/nemotron-parse"
 
     def test_build_nvidia_returns_expected_embed_defaults(self):
         _, embed, _ = resolve_inference_preset("build.nvidia.com")
         assert embed["embed_invoke_url"] == "https://integrate.api.nvidia.com/v1/embeddings"
-        assert embed["model_name"] == "nvidia/llama-nemotron-embed-1b-v2"
+        assert embed["model_name"] == "nvidia/llama-nemotron-embed-vl-1b-v2"
         assert embed["embed_modality"] == "text"
 
     def test_build_nvidia_returns_expected_caption_defaults(self):
