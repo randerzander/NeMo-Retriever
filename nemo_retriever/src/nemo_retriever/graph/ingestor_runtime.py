@@ -18,7 +18,7 @@ from nemo_retriever.graph.content_transforms import (
     explode_content_to_rows,
 )
 from nemo_retriever.graph.multi_type_extract_operator import MultiTypeExtractOperator
-from nemo_retriever.ocr.ocr import NemotronParseActor, OCRActor
+from nemo_retriever.ocr.ocr import NemotronParseActor, OCRActor, DeepSeekOCR2Actor
 from nemo_retriever.page_elements.page_elements import PageElementDetectionActor
 from nemo_retriever.pdf.extract import PDFExtractionActor
 from nemo_retriever.pdf.split import PDFSplitActor
@@ -90,6 +90,18 @@ def build_batch_graph(
             if extract_params.api_key:
                 parse_kwargs["api_key"] = extract_params.api_key
             graph = graph >> NemotronParseActor(**parse_kwargs)
+        elif extract_params.method == "deepseekocr2":
+            deepseek_kwargs: dict[str, Any] = {
+                "extract_text": extract_params.extract_text,
+                "extract_tables": extract_params.extract_tables,
+                "extract_charts": extract_params.extract_charts,
+                "extract_infographics": extract_params.extract_infographics,
+            }
+            if extract_params.invoke_url:
+                deepseek_kwargs["invoke_url"] = extract_params.invoke_url
+            if extract_params.api_key:
+                deepseek_kwargs["api_key"] = extract_params.api_key
+            graph = graph >> DeepSeekOCR2Actor(**deepseek_kwargs)
         else:
             detect_kwargs: dict[str, Any] = {}
             if extract_params.page_elements_invoke_url:
@@ -207,6 +219,18 @@ def build_inprocess_graph(
         if extract_params.api_key:
             parse_kwargs["api_key"] = extract_params.api_key
         graph = graph >> NemotronParseActor(**parse_kwargs)
+    elif extract_params.method == "deepseekocr2":
+        deepseek_kwargs: dict[str, Any] = {
+            "extract_text": extract_params.extract_text,
+            "extract_tables": extract_params.extract_tables,
+            "extract_charts": extract_params.extract_charts,
+            "extract_infographics": extract_params.extract_infographics,
+        }
+        if extract_params.invoke_url:
+            deepseek_kwargs["invoke_url"] = extract_params.invoke_url
+        if extract_params.api_key:
+            deepseek_kwargs["api_key"] = extract_params.api_key
+        graph = graph >> DeepSeekOCR2Actor(**deepseek_kwargs)
     else:
         detect_kwargs: dict[str, Any] = {}
         if extract_params.page_elements_invoke_url:

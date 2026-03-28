@@ -18,7 +18,7 @@ from nemo_retriever.graph.abstract_operator import AbstractOperator
 from nemo_retriever.html.ray_data import HtmlSplitActor
 from nemo_retriever.image.ray_data import ImageLoadActor
 from nemo_retriever.image.load import SUPPORTED_IMAGE_EXTENSIONS
-from nemo_retriever.ocr.ocr import NemotronParseActor, OCRActor
+from nemo_retriever.ocr.ocr import NemotronParseActor, OCRActor, DeepSeekOCR2Actor
 from nemo_retriever.page_elements.page_elements import PageElementDetectionActor
 from nemo_retriever.params import ASRParams
 from nemo_retriever.params import AudioChunkParams
@@ -193,6 +193,19 @@ class MultiTypeExtractOperator(AbstractOperator):
             if extract_params.api_key:
                 parse_kwargs["api_key"] = extract_params.api_key
             return NemotronParseActor(**parse_kwargs).run(batch_df)
+
+        if extract_params.method == "deepseekocr2":
+            deepseek_kwargs: dict[str, Any] = {
+                "extract_text": extract_params.extract_text,
+                "extract_tables": extract_params.extract_tables,
+                "extract_charts": extract_params.extract_charts,
+                "extract_infographics": extract_params.extract_infographics,
+            }
+            if extract_params.invoke_url:
+                deepseek_kwargs["invoke_url"] = extract_params.invoke_url
+            if extract_params.api_key:
+                deepseek_kwargs["api_key"] = extract_params.api_key
+            return DeepSeekOCR2Actor(**deepseek_kwargs).run(batch_df)
 
         extract_kwargs: dict[str, Any] = {
             "method": extract_params.method,

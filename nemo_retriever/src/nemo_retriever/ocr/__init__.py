@@ -2,6 +2,6 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-from .ocr import OCRActor, ocr_page_elements
+from .ocr import DeepSeekOCR2Actor, OCRActor, deepseek_ocr2_page_elements, ocr_page_elements
 
-__all__ = ["OCRActor", "ocr_page_elements"]
+__all__ = ["DeepSeekOCR2Actor", "OCRActor", "deepseek_ocr2_page_elements", "ocr_page_elements"]
