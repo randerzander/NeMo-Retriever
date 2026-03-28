@@ -135,7 +135,7 @@ class NemotronParseV12(BaseModel):
         ).to(self._device)
 
         with torch.inference_mode():
-            outputs = self._model.generate(**inputs, generation_config=self._generation_config)
+            outputs = self._model.generate(**inputs, generation_config=self._generation_config, use_cache=False)
 
         decoded = self._processor.batch_decode(outputs, skip_special_tokens=True)
         return decoded[0] if decoded else ""
