@@ -86,6 +86,7 @@ def _normalize_page_elements_config(raw: Dict[str, Any]) -> Dict[str, Any]:
     endpoints = raw.get("endpoints") if isinstance(raw.get("endpoints"), dict) else {}
     yolox = endpoints.get("yolox") if isinstance(endpoints.get("yolox"), dict) else {}
     nemo = endpoints.get("nemotron_parse") if isinstance(endpoints.get("nemotron_parse"), dict) else {}
+    lo2 = endpoints.get("lighton_ocr2") if isinstance(endpoints.get("lighton_ocr2"), dict) else {}
 
     extract = raw.get("extract") if isinstance(raw.get("extract"), dict) else {}
     outputs = raw.get("outputs") if isinstance(raw.get("outputs"), dict) else {}
@@ -111,6 +112,13 @@ def _normalize_page_elements_config(raw: Dict[str, Any]) -> Dict[str, Any]:
     out["nemotron_parse_model_name"] = _cfg_get(
         raw, "nemotron_parse_model_name", "nemotron-parse-model-name"
     ) or _cfg_get(nemo, "model_name", "model-name")
+
+    out["lighton_ocr2_http_endpoint"] = _cfg_get(
+        raw, "lighton_ocr2_http_endpoint", "lighton-ocr2-http-endpoint"
+    ) or _cfg_get(lo2, "http", "http_endpoint", "http-endpoint")
+    out["lighton_ocr2_model_name"] = _cfg_get(
+        raw, "lighton_ocr2_model_name", "lighton-ocr2-model-name"
+    ) or _cfg_get(lo2, "model_name", "model-name")
 
     out["extract_text"] = (
         _cfg_get(raw, "extract_text", "extract-text") if "extract_text" in raw else _cfg_get(extract, "text")
@@ -470,12 +478,12 @@ def render_page_elements(
     method: str = typer.Option(
         "pdfium",
         "--method",
-        help="PDF extraction method (e.g. 'pdfium', 'pdfium_hybrid', 'ocr', 'nemotron_parse', 'tika').",
+        help="PDF extraction method (e.g. 'pdfium', 'pdfium_hybrid', 'ocr', 'nemotron_parse', 'lightonocr2', 'tika').",
     ),
     auth_token: Optional[str] = typer.Option(
         None,
         "--auth-token",
-        help="Auth token for NIM-backed services (e.g. YOLOX / Nemotron Parse).",
+        help="Auth token for NIM-backed services (e.g. YOLOX / Nemotron Parse / LightOn OCR 2).",
     ),
     yolox_grpc_endpoint: Optional[str] = typer.Option(
         None,
@@ -501,6 +509,19 @@ def render_page_elements(
         None,
         "--nemotron-parse-model-name",
         help="Nemotron Parse model name (optional; defaults to schema default).",
+    ),
+    lighton_ocr2_http_endpoint: Optional[str] = typer.Option(
+        None,
+        "--lighton-ocr2-http-endpoint",
+        help=(
+            "LightOn OCR 2 chat-completions HTTP endpoint (required for method 'lightonocr2'). "
+            "E.g. 'https://api.lighton.ai/v1/chat/completions'."
+        ),
+    ),
+    lighton_ocr2_model_name: Optional[str] = typer.Option(
+        None,
+        "--lighton-ocr2-model-name",
+        help="LightOn OCR 2 model name sent in the chat-completions request (optional; defaults to 'lighton/ocr-2').",
     ),
     extract_text: bool = typer.Option(True, "--extract-text/--no-extract-text", help="Extract text primitives."),
     extract_images: bool = typer.Option(
@@ -576,6 +597,11 @@ def render_page_elements(
     if not _argv_has_any(["--nemotron-parse-model-name"]):
         nemotron_parse_model_name = cfg_raw.get("nemotron_parse_model_name", nemotron_parse_model_name)
 
+    if not _argv_has_any(["--lighton-ocr2-http-endpoint"]):
+        lighton_ocr2_http_endpoint = cfg_raw.get("lighton_ocr2_http_endpoint", lighton_ocr2_http_endpoint)
+    if not _argv_has_any(["--lighton-ocr2-model-name"]):
+        lighton_ocr2_model_name = cfg_raw.get("lighton_ocr2_model_name", lighton_ocr2_model_name)
+
     if not _argv_has_any(["--extract-text", "--no-extract-text"]):
         extract_text = bool(cfg_raw.get("extract_text", extract_text))
     if not _argv_has_any(["--extract-images", "--no-extract-images"]):
@@ -639,6 +665,15 @@ def render_page_elements(
             "nemotron_parse_endpoints": [nemotron_parse_grpc_endpoint, nemotron_parse_http_endpoint],
             "nemotron_parse_model_name": nemotron_parse_model_name,
         }
+    elif method == "lightonocr2":
+        # lightonocr2 uses a local LightOnOCR2 model when no endpoint is supplied.
+        # The extractor_cfg entry is advisory only; the actual task wiring happens
+        # inside _append_detection_tasks via the inprocess pipeline.
+        if lighton_ocr2_http_endpoint or auth_token:
+            extractor_cfg["lighton_ocr2_invoke_url"] = lighton_ocr2_http_endpoint or ""
+            extractor_cfg["lighton_ocr2_api_key"] = auth_token
+        if lighton_ocr2_model_name:
+            extractor_cfg["lighton_ocr2_model_name"] = lighton_ocr2_model_name
 
     extractor_schema = load_pdf_extractor_schema_from_dict(extractor_cfg)
     task_cfg = make_pdf_task_config(

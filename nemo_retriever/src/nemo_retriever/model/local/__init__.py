@@ -20,6 +20,7 @@ __all__ = [
     "NemotronRerankV2",
     "NemotronVLMCaptioner",
     "ParakeetCTC1B1ASR",
+    "LightOnOCR2",
 ]
 
 
@@ -56,4 +57,8 @@ def __getattr__(name: str):
         from .parakeet_ctc_1_1b_asr import ParakeetCTC1B1ASR
 
         return ParakeetCTC1B1ASR
+    if name == "LightOnOCR2":
+        from .lighton_ocr2 import LightOnOCR2
+
+        return LightOnOCR2
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -194,6 +194,91 @@ def invoke_image_inference_batches(
     return out
 
 
+def invoke_chat_completions_image_batches(
+    *,
+    invoke_url: str,
+    image_b64_list: Sequence[str],
+    model_name: str = "lighton/ocr-2",
+    api_key: Optional[str] = None,
+    timeout_s: float = 120.0,
+    max_pool_workers: int = 16,
+    max_retries: int = 10,
+    max_429_retries: int = 5,
+) -> List[Any]:
+    """
+    Invoke a chat-completions endpoint (OpenAI-compatible) with one image per request.
+
+    Each base64-encoded image is sent as a separate ``chat/completions`` POST
+    request containing a single user message with an ``image_url`` part.
+    All requests are dispatched concurrently via a thread pool and the
+    responses are collected in the original order.
+
+    Returns a list of raw response dicts (one per input image).  Use
+    ``_extract_lighton_ocr2_text`` (in ``ocr.py``) to pull the text out of
+    each dict.
+    """
+    invoke_urls = _parse_invoke_urls(invoke_url)
+
+    token = (api_key or "").strip()
+    headers: Dict[str, str] = {"Accept": "application/json", "Content-Type": "application/json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    n = len(image_b64_list)
+    if n == 0:
+        return []
+
+    flattened: List[Optional[Any]] = [None] * n
+
+    def _invoke_one(idx: int, b64: str, endpoint_url: str) -> Tuple[int, Any]:
+        payload = {
+            "model": model_name,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:{_mime_from_b64(b64)};base64,{b64}",
+                            },
+                        }
+                    ],
+                }
+            ],
+        }
+        response_json = _post_with_retries(
+            invoke_url=endpoint_url,
+            payload=payload,
+            headers=headers,
+            timeout_s=float(timeout_s),
+            max_retries=int(max_retries),
+            max_429_retries=int(max_429_retries),
+        )
+        return idx, response_json
+
+    with ThreadPoolExecutor(max_workers=max(1, int(max_pool_workers))) as executor:
+        futures = {
+            executor.submit(
+                _invoke_one,
+                idx,
+                b64,
+                invoke_urls[idx % len(invoke_urls)],
+            ): idx
+            for idx, b64 in enumerate(image_b64_list)
+        }
+        for future in as_completed(futures):
+            idx, response_json = future.result()
+            flattened[idx] = response_json
+
+    out: List[Any] = []
+    for idx, item in enumerate(flattened):
+        if item is None:
+            raise RuntimeError(f"Missing response for item index {idx}")
+        out.append(item)
+    return out
+
+
 def invoke_page_elements_batches(
     *,
     invoke_url: str,

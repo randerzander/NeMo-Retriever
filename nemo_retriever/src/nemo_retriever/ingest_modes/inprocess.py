@@ -32,7 +32,12 @@ import pandas as pd
 from nemo_retriever.chart.chart_detection import graphic_elements_ocr_page_elements
 from nemo_retriever.dedup.dedup import dedup_images
 from nemo_retriever.model.local import NemotronOCRV1, NemotronPageElementsV3, NemotronParseV12
-from nemo_retriever.ocr.ocr import _crop_b64_image_by_norm_bbox, nemotron_parse_page_elements, ocr_page_elements
+from nemo_retriever.ocr.ocr import (
+    _crop_b64_image_by_norm_bbox,
+    lighton_ocr2_page_elements,
+    nemotron_parse_page_elements,
+    ocr_page_elements,
+)
 from nemo_retriever.page_elements import detect_page_elements_v3
 from nemo_retriever.params import DedupParams
 from nemo_retriever.table.table_detection import table_structure_ocr_page_elements
@@ -1033,6 +1038,7 @@ class InProcessIngestor(Ingestor):
             resolved = resolved.model_copy(update={"api_key": resolve_remote_api_key()})
         kwargs = resolved.model_dump(mode="python")
         use_nemotron_parse_only = kwargs.get("method") == "nemotron_parse"
+        use_lighton_ocr2_only = kwargs.get("method") == "lightonocr2"
         extract_kwargs = dict(kwargs)
         # Downstream in-process stages (page elements / table / chart / infographic) assume
         # `page_image.image_b64` exists. Ensure PDF extraction emits a page image unless
@@ -1046,7 +1052,7 @@ class InProcessIngestor(Ingestor):
         self._pipeline_type = "pdf"
         self._tasks.append((pdf_extraction, extract_kwargs))
 
-        self._append_detection_tasks(kwargs, use_nemotron_parse_only=use_nemotron_parse_only)
+        self._append_detection_tasks(kwargs, use_nemotron_parse_only=use_nemotron_parse_only, use_lighton_ocr2_only=use_lighton_ocr2_only)
 
         return self
 
@@ -1055,6 +1061,7 @@ class InProcessIngestor(Ingestor):
         kwargs: dict[str, Any],
         *,
         use_nemotron_parse_only: bool = False,
+        use_lighton_ocr2_only: bool = False,
     ) -> None:
         """Append page-element detection, OCR, table/chart/infographic tasks.
 
@@ -1114,6 +1121,29 @@ class InProcessIngestor(Ingestor):
                 self._tasks.append((nemotron_parse_page_elements, {"model": None, **parse_flags}))
             else:
                 self._tasks.append((nemotron_parse_page_elements, {"model": NemotronParseV12(), **parse_flags}))
+        elif use_lighton_ocr2_only:
+            lo2_flags: dict[str, Any] = {}
+            if kwargs.get("extract_text") is True:
+                lo2_flags["extract_text"] = True
+            if kwargs.get("extract_tables") is True:
+                lo2_flags["extract_tables"] = True
+            if kwargs.get("extract_charts") is True:
+                lo2_flags["extract_charts"] = True
+            if kwargs.get("extract_infographics") is True:
+                lo2_flags["extract_infographics"] = True
+            lo2_flags.update(_stage_remote_kwargs("lighton_ocr2"))
+            lo2_invoke_url = kwargs.get(
+                "lighton_ocr2_invoke_url", kwargs.get("ocr_invoke_url", kwargs.get("invoke_url", ""))
+            )
+            lo2_model_name = kwargs.get("lighton_ocr2_model_name", "lighton/ocr-2")
+            if lo2_invoke_url:
+                lo2_flags["invoke_url"] = lo2_invoke_url
+                lo2_flags["model_name"] = lo2_model_name
+                self._tasks.append((lighton_ocr2_page_elements, {"model": None, **lo2_flags}))
+            else:
+                from nemo_retriever.model.local import LightOnOCR2
+
+                self._tasks.append((lighton_ocr2_page_elements, {"model": LightOnOCR2(), **lo2_flags}))
         else:
             # NOTE: Page element detection is a common prerequisite for downstream
             # structure stages (tables/charts/infographics). We enable it whenever
@@ -1262,8 +1292,9 @@ class InProcessIngestor(Ingestor):
             resolved = resolved.model_copy(update={"api_key": resolve_remote_api_key()})
         kwargs = resolved.model_dump(mode="python")
         use_nemotron_parse_only = kwargs.get("method") == "nemotron_parse"
+        use_lighton_ocr2_only = kwargs.get("method") == "lightonocr2"
         self._pipeline_type = "image"
-        self._append_detection_tasks(kwargs, use_nemotron_parse_only=use_nemotron_parse_only)
+        self._append_detection_tasks(kwargs, use_nemotron_parse_only=use_nemotron_parse_only, use_lighton_ocr2_only=use_lighton_ocr2_only)
         return self
 
     def split(self, params: TextChunkParams | None = None, **kwargs: Any) -> "InProcessIngestor":

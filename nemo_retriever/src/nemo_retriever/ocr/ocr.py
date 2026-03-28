@@ -1257,3 +1257,424 @@ class NemotronParseCPUActor(AbstractOperator, CPUOperator):
 
     def postprocess(self, data: Any, **kwargs: Any) -> Any:
         return data
+
+
+# ---------------------------------------------------------------------------
+# LightOn OCR 2
+# ---------------------------------------------------------------------------
+
+
+def _extract_lighton_ocr2_text(response_item: Any) -> str:
+    """
+    Extract text from a LightOn OCR 2 chat-completions response.
+
+    Handles both the standard OpenAI ``choices[0].message.content`` shape
+    and several fallback formats so that the caller is insulated from minor
+    API changes.
+    """
+    if response_item is None:
+        return ""
+    if isinstance(response_item, str):
+        return response_item.strip()
+    if isinstance(response_item, dict):
+        # Standard OpenAI chat-completions shape.
+        choices = response_item.get("choices")
+        if isinstance(choices, list) and choices:
+            first_choice = choices[0]
+            if isinstance(first_choice, dict):
+                message = first_choice.get("message") or {}
+                if isinstance(message, dict):
+                    content = message.get("content")
+                    if isinstance(content, str):
+                        return content.strip()
+        # Generic fallback keys used by other endpoints.
+        for key in ("generated_text", "text", "output_text", "prediction", "output", "data"):
+            value = response_item.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+            if isinstance(value, list) and value:
+                first = value[0]
+                if isinstance(first, str) and first.strip():
+                    return first.strip()
+                if isinstance(first, dict):
+                    inner = _extract_lighton_ocr2_text(first)
+                    if inner:
+                        return inner
+    if isinstance(response_item, list):
+        for item in response_item:
+            text = _extract_lighton_ocr2_text(item)
+            if text:
+                return text
+    try:
+        return str(response_item).strip()
+    except Exception:
+        return ""
+
+
+def lighton_ocr2_page_elements(
+    batch_df: Any,
+    *,
+    model: Any = None,
+    invoke_url: Optional[str] = None,
+    model_name: str = "lighton/ocr-2",
+    api_key: Optional[str] = None,
+    request_timeout_s: float = 120.0,
+    extract_text: bool = False,
+    extract_tables: bool = False,
+    extract_charts: bool = False,
+    extract_infographics: bool = False,
+    remote_retry: RemoteRetryParams | None = None,
+    **kwargs: Any,
+) -> Any:
+    """
+    Run LightOn OCR 2 on cropped page elements.
+
+    Emits OCR-compatible content columns (``table``, ``chart``, ``infographic``)
+    so this stage can replace the page-elements + OCR pair in pipeline wiring,
+    using LightOn OCR 2 instead of Nemotron Parse.
+
+    Parameters
+    ----------
+    batch_df:
+        DataFrame with ``page_elements_v3`` and ``page_image`` columns
+        (as produced by the page-element detection stage).
+    model:
+        A loaded :class:`~nemo_retriever.model.local.LightOnOCR2` instance
+        for local inference.  Mutually exclusive with ``invoke_url``.
+    invoke_url:
+        HTTP endpoint for a remote LightOn-compatible chat-completions
+        service.  When set, ``model`` is ignored.
+    model_name:
+        Chat-completions model identifier forwarded in the ``"model"`` field
+        of each request (only used when ``invoke_url`` is set).
+    api_key:
+        Bearer token for the remote endpoint.
+    request_timeout_s:
+        Per-request HTTP timeout in seconds (remote path only).
+    extract_text, extract_tables, extract_charts, extract_infographics:
+        Which content types to extract.
+    remote_retry:
+        Retry / concurrency parameters for remote requests.
+    """
+    from nemo_retriever.nim.nim import invoke_chat_completions_image_batches
+
+    retry = remote_retry or RemoteRetryParams(
+        remote_max_pool_workers=int(kwargs.get("remote_max_pool_workers", 16)),
+        remote_max_retries=int(kwargs.get("remote_max_retries", 10)),
+        remote_max_429_retries=int(kwargs.get("remote_max_429_retries", 5)),
+    )
+    if not isinstance(batch_df, pd.DataFrame):
+        raise NotImplementedError("lighton_ocr2_page_elements currently only supports pandas.DataFrame input.")
+
+    invoke_url = (invoke_url or kwargs.get("lighton_ocr2_invoke_url") or "").strip()
+    use_remote = bool(invoke_url)
+    if not use_remote and model is None:
+        raise ValueError("A local `model` is required when `invoke_url` is not provided.")
+
+    wanted_labels: set[str] = set()
+    if extract_tables:
+        wanted_labels.add("table")
+    if extract_charts:
+        wanted_labels.add("chart")
+    if extract_infographics:
+        wanted_labels.add("infographic")
+
+    all_table: List[List[Dict[str, Any]]] = []
+    all_chart: List[List[Dict[str, Any]]] = []
+    all_infographic: List[List[Dict[str, Any]]] = []
+    all_text: List[str] = []
+    all_meta: List[Dict[str, Any]] = []
+
+    t0_total = time.perf_counter()
+
+    for row in batch_df.itertuples(index=False):
+        table_items: List[Dict[str, Any]] = []
+        chart_items: List[Dict[str, Any]] = []
+        infographic_items: List[Dict[str, Any]] = []
+        row_text: Optional[str] = None
+        row_error: Any = None
+
+        try:
+            pe = getattr(row, "page_elements_v3", None)
+            dets: List[Dict[str, Any]] = []
+            if isinstance(pe, dict):
+                dets = pe.get("detections") or []
+            if not isinstance(dets, list):
+                dets = []
+
+            page_image = getattr(row, "page_image", None) or {}
+            page_image_b64 = page_image.get("image_b64") if isinstance(page_image, dict) else None
+            if not isinstance(page_image_b64, str) or not page_image_b64:
+                all_table.append(table_items)
+                all_chart.append(chart_items)
+                all_infographic.append(infographic_items)
+                all_text.append(None)
+                all_meta.append({"timing": None, "error": None})
+                continue
+
+            if use_remote:
+                crops = _crop_all_from_page(page_image_b64, dets, wanted_labels, as_b64=True)
+                # If no crops were detected, fall back to the full page.
+                if not crops and wanted_labels:
+                    crops = [("full_page", [0.0, 0.0, 1.0, 1.0], page_image_b64)]
+
+                crop_b64s: List[str] = [b64 for _label, _bbox, b64 in crops]
+                crop_meta: List[Tuple[str, List[float]]] = [(label, bbox) for label, bbox, _b64 in crops]
+
+                if crop_b64s:
+                    response_items = invoke_chat_completions_image_batches(
+                        invoke_url=invoke_url,
+                        image_b64_list=crop_b64s,
+                        model_name=model_name,
+                        api_key=api_key,
+                        timeout_s=float(request_timeout_s),
+                        max_pool_workers=int(retry.remote_max_pool_workers),
+                        max_retries=int(retry.remote_max_retries),
+                        max_429_retries=int(retry.remote_max_429_retries),
+                    )
+                    if len(response_items) != len(crop_meta):
+                        raise RuntimeError(
+                            f"Expected {len(crop_meta)} LightOn OCR 2 responses, got {len(response_items)}"
+                        )
+
+                    for i, (label_name, bbox) in enumerate(crop_meta):
+                        text = _extract_lighton_ocr2_text(response_items[i])
+                        entry = {"bbox_xyxy_norm": bbox, "text": text}
+                        if label_name == "table":
+                            table_items.append(entry)
+                        elif label_name == "chart":
+                            chart_items.append(entry)
+                        elif label_name == "infographic":
+                            infographic_items.append(entry)
+                        elif label_name == "full_page":
+                            if extract_tables:
+                                table_items.append(dict(entry))
+                            if extract_charts:
+                                chart_items.append(dict(entry))
+                            if extract_infographics:
+                                infographic_items.append(dict(entry))
+            else:
+                crops = _crop_all_from_page(page_image_b64, dets, wanted_labels)
+                if not crops and wanted_labels:
+                    try:
+                        raw = base64.b64decode(page_image_b64)
+                        with Image.open(io.BytesIO(raw)) as im0:
+                            full_crop = np.asarray(im0.convert("RGB"), dtype=np.uint8).copy()
+                        crops = [("full_page", [0.0, 0.0, 1.0, 1.0], full_crop)]
+                    except Exception:
+                        crops = []
+                for label_name, bbox, crop_array in crops:
+                    text = str(model.invoke(crop_array) or "").strip()
+                    entry = {"bbox_xyxy_norm": bbox, "text": text}
+                    if label_name == "table":
+                        table_items.append(entry)
+                    elif label_name == "chart":
+                        chart_items.append(entry)
+                    elif label_name == "infographic":
+                        infographic_items.append(entry)
+                    elif label_name == "full_page":
+                        if extract_tables:
+                            table_items.append(dict(entry))
+                        if extract_charts:
+                            chart_items.append(dict(entry))
+                        if extract_infographics:
+                            infographic_items.append(dict(entry))
+
+            # When extract_text is requested, parse the full page for text
+            # (only for pages that need OCR-based text extraction).
+            meta = getattr(row, "metadata", None) or {}
+            needs_ocr = meta.get("needs_ocr_for_text", False) if isinstance(meta, dict) else False
+            if extract_text and needs_ocr:
+                try:
+                    if use_remote:
+                        resp = invoke_chat_completions_image_batches(
+                            invoke_url=invoke_url,
+                            image_b64_list=[page_image_b64],
+                            model_name=model_name,
+                            api_key=api_key,
+                            timeout_s=float(request_timeout_s),
+                            max_pool_workers=int(retry.remote_max_pool_workers),
+                            max_retries=int(retry.remote_max_retries),
+                            max_429_retries=int(retry.remote_max_429_retries),
+                        )
+                        row_text = _extract_lighton_ocr2_text(resp[0]) if resp else ""
+                    else:
+                        raw = base64.b64decode(page_image_b64)
+                        with Image.open(io.BytesIO(raw)) as im0:
+                            full_crop = np.asarray(im0.convert("RGB"), dtype=np.uint8).copy()
+                        row_text = str(model.invoke(full_crop) or "").strip()
+                except Exception:
+                    row_text = ""
+
+        except BaseException as e:
+            print(f"Warning: LightOn OCR 2 failed: {type(e).__name__}: {e}")
+            row_error = {
+                "stage": "lighton_ocr2_page_elements",
+                "type": e.__class__.__name__,
+                "message": str(e),
+                "traceback": "".join(traceback.format_exception(type(e), e, e.__traceback__)),
+            }
+
+        all_text.append(row_text)
+        all_table.append(table_items)
+        all_chart.append(chart_items)
+        all_infographic.append(infographic_items)
+        all_meta.append({"timing": None, "error": row_error})
+
+    elapsed = time.perf_counter() - t0_total
+    for meta in all_meta:
+        meta["timing"] = {"seconds": float(elapsed)}
+
+    out = batch_df.copy()
+    if extract_text and "text" in out.columns:
+        for i, parse_text in enumerate(all_text):
+            if parse_text is not None:
+                out.iat[i, out.columns.get_loc("text")] = parse_text
+    elif extract_text:
+        out["text"] = [t if t is not None else "" for t in all_text]
+    out["table"] = all_table
+    out["chart"] = all_chart
+    out["infographic"] = all_infographic
+    out["lighton_ocr2"] = all_meta
+    return out
+
+
+class LightOnOCR2Actor(AbstractOperator, GPUOperator):
+    """
+    Ray-friendly callable that initializes LightOn OCR 2 once per actor.
+
+    Intended for pipeline wiring in batch/inprocess ingest modes.
+    """
+
+    def __init__(
+        self,
+        *,
+        extract_tables: bool = False,
+        extract_charts: bool = False,
+        extract_infographics: bool = False,
+        lighton_ocr2_invoke_url: Optional[str] = None,
+        invoke_url: Optional[str] = None,
+        model_name: str = "lighton/ocr-2",
+        api_key: Optional[str] = None,
+        request_timeout_s: float = 120.0,
+        remote_max_pool_workers: int = 16,
+        remote_max_retries: int = 10,
+        remote_max_429_retries: int = 5,
+    ) -> None:
+        super().__init__()
+        self._invoke_url = (lighton_ocr2_invoke_url or invoke_url or "").strip()
+        self._model_name = str(model_name)
+        self._api_key = api_key
+        self._request_timeout_s = float(request_timeout_s)
+        self._remote_retry = RemoteRetryParams(
+            remote_max_pool_workers=int(remote_max_pool_workers),
+            remote_max_retries=int(remote_max_retries),
+            remote_max_429_retries=int(remote_max_429_retries),
+        )
+        if self._invoke_url:
+            self._model = None
+        else:
+            from nemo_retriever.model.local import LightOnOCR2
+
+            self._model = LightOnOCR2()
+        self._extract_tables = bool(extract_tables)
+        self._extract_charts = bool(extract_charts)
+        self._extract_infographics = bool(extract_infographics)
+
+    def preprocess(self, data: Any, **kwargs: Any) -> Any:
+        return data
+
+    def process(self, data: Any, **kwargs: Any) -> Any:
+        return lighton_ocr2_page_elements(
+            data,
+            model=self._model,
+            invoke_url=self._invoke_url,
+            model_name=self._model_name,
+            api_key=self._api_key,
+            request_timeout_s=self._request_timeout_s,
+            extract_tables=self._extract_tables,
+            extract_charts=self._extract_charts,
+            extract_infographics=self._extract_infographics,
+            remote_retry=self._remote_retry,
+            **kwargs,
+        )
+
+    def postprocess(self, data: Any, **kwargs: Any) -> Any:
+        return data
+
+    def __call__(self, batch_df: Any, **override_kwargs: Any) -> Any:
+        try:
+            return self.run(batch_df, **override_kwargs)
+        except BaseException as e:
+            if isinstance(batch_df, pd.DataFrame):
+                out = batch_df.copy()
+                payload = _error_payload(stage="lighton_ocr2_actor_call", exc=e)
+                n = len(out.index)
+                out["table"] = [[] for _ in range(n)]
+                out["chart"] = [[] for _ in range(n)]
+                out["infographic"] = [[] for _ in range(n)]
+                out["lighton_ocr2"] = [payload for _ in range(n)]
+                return out
+            return [{"lighton_ocr2": _error_payload(stage="lighton_ocr2_actor_call", exc=e)}]
+
+
+class LightOnOCR2CPUActor(AbstractOperator, CPUOperator):
+    """CPU-only variant of :class:`LightOnOCR2Actor`.
+
+    Defaults to the LightOn API endpoint for ``lighton/ocr-2``.
+    No local GPU model is loaded; an ``invoke_url`` must be supplied or the
+    :attr:`DEFAULT_INVOKE_URL` is used.
+    """
+
+    DEFAULT_INVOKE_URL = "https://api.lighton.ai/v1/chat/completions"
+
+    def __init__(
+        self,
+        *,
+        extract_tables: bool = False,
+        extract_charts: bool = False,
+        extract_infographics: bool = False,
+        lighton_ocr2_invoke_url: Optional[str] = None,
+        invoke_url: Optional[str] = None,
+        model_name: str = "lighton/ocr-2",
+        api_key: Optional[str] = None,
+        request_timeout_s: float = 120.0,
+        remote_max_pool_workers: int = 16,
+        remote_max_retries: int = 10,
+        remote_max_429_retries: int = 5,
+    ) -> None:
+        super().__init__()
+        self._invoke_url = (lighton_ocr2_invoke_url or invoke_url or self.DEFAULT_INVOKE_URL).strip()
+        self._model_name = str(model_name)
+        self._api_key = api_key
+        self._request_timeout_s = float(request_timeout_s)
+        self._remote_retry = RemoteRetryParams(
+            remote_max_pool_workers=int(remote_max_pool_workers),
+            remote_max_retries=int(remote_max_retries),
+            remote_max_429_retries=int(remote_max_429_retries),
+        )
+        self._model = None
+        self._extract_tables = bool(extract_tables)
+        self._extract_charts = bool(extract_charts)
+        self._extract_infographics = bool(extract_infographics)
+
+    def preprocess(self, data: Any, **kwargs: Any) -> Any:
+        return data
+
+    def process(self, data: Any, **kwargs: Any) -> Any:
+        return lighton_ocr2_page_elements(
+            data,
+            model=self._model,
+            invoke_url=self._invoke_url,
+            model_name=self._model_name,
+            api_key=self._api_key,
+            request_timeout_s=self._request_timeout_s,
+            extract_tables=self._extract_tables,
+            extract_charts=self._extract_charts,
+            extract_infographics=self._extract_infographics,
+            remote_retry=self._remote_retry,
+            **kwargs,
+        )
+
+    def postprocess(self, data: Any, **kwargs: Any) -> Any:
+        return data
