@@ -58,7 +58,7 @@ class Retriever:
     reranker_model_name: Optional[str] = "nvidia/llama-nemotron-rerank-1b-v2"
     """HuggingFace model ID for local reranking (e.g. 'nvidia/llama-nemotron-rerank-1b-v2')."""
     reranker_endpoint: Optional[str] = None
-    """Base URL of a vLLM / NIM /rerank endpoint.  Takes priority over local model."""
+    """Base URL of a vLLM / NIM ranking endpoint. Appends ``/v1/ranking`` unless already using ``/reranking``."""
     reranker_api_key: str = ""
     """Bearer token for the remote rerank endpoint."""
     reranker_max_length: int = 512
@@ -70,6 +70,8 @@ class Retriever:
     Set to 1 to rerank only the top_k results."""
     # Internal cache for the local rerank model (not part of the public API).
     _reranker_model: Any = field(default=None, init=False, repr=False, compare=False)
+    # Internal cache for local HF embedders, keyed by model name.
+    _embedder_cache: dict = field(default_factory=dict, init=False, repr=False, compare=False)
 
     def _resolve_embedding_endpoint(self) -> Optional[str]:
         http_ep = self.embedding_http_endpoint.strip() if isinstance(self.embedding_http_endpoint, str) else None
@@ -108,11 +110,23 @@ class Retriever:
                 out.append(list(embedding))
         return out
 
-    def _embed_queries_local_hf(self, query_texts: list[str], *, model_name: str) -> list[list[float]]:
-        from nemo_retriever.model import create_local_embedder, is_vl_embed_model
+    def _get_local_embedder(self, model_name: str) -> Any:
+        """Lazily load and cache the local HF embedder for *model_name*."""
+        if model_name not in self._embedder_cache:
+            from nemo_retriever.model import create_local_embedder
 
-        cache_dir = str(self.local_hf_cache_dir) if self.local_hf_cache_dir else None
-        embedder = create_local_embedder(model_name, device=self.local_hf_device, hf_cache_dir=cache_dir)
+            cache_dir = str(self.local_hf_cache_dir) if self.local_hf_cache_dir else None
+            self._embedder_cache[model_name] = create_local_embedder(
+                model_name,
+                device=self.local_hf_device,
+                hf_cache_dir=cache_dir,
+            )
+        return self._embedder_cache[model_name]
+
+    def _embed_queries_local_hf(self, query_texts: list[str], *, model_name: str) -> list[list[float]]:
+        from nemo_retriever.model import is_vl_embed_model
+
+        embedder = self._get_local_embedder(model_name)
 
         if is_vl_embed_model(model_name):
             vectors = embedder.embed_queries(query_texts, batch_size=int(self.local_hf_batch_size))
@@ -304,6 +318,12 @@ class Retriever:
             results = self._rerank_results(query_texts, results)
 
         return results
+
+    def generate_sql(self, query: str) -> str:
+        """Generate a SQL query for a given natural language query."""
+        from nemo_retriever.tabular_data.retrieval import generate_sql
+
+        return generate_sql(query)
 
 
 # Backward compatibility alias.
