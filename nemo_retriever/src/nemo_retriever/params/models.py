@@ -15,11 +15,21 @@ from upath import UPath
 from nemo_retriever.tabular_data.sql_database import SQLDatabase
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from nemo_retriever.utils.remote_auth import resolve_remote_api_key
+
 RunMode = Literal["inprocess", "batch", "fused", "online"]
 
 
 class _ParamsModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="after")
+    def _resolve_api_keys(self) -> "_ParamsModel":
+        for field_name in self.model_fields:
+            if field_name == "api_key" or field_name.endswith("_api_key"):
+                if getattr(self, field_name, None) is None:
+                    object.__setattr__(self, field_name, resolve_remote_api_key())
+        return self
 
 
 class RemoteRetryParams(_ParamsModel):
