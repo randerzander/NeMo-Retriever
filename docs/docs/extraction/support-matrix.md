@@ -28,11 +28,11 @@ This includes the following:
 
 - [llama-nemotron-rerank-vl-1b-v2](https://huggingface.co/nvidia/llama-nemotron-rerank-vl-1b-v2) for improved retrieval accuracy.
 
-## Hardware Requirements for HuggingFace models:
+## HuggingFace Model Storage Requirements:
 
 **ToDo: add model weight sizes on disk for each HF model**
 
-## Hardware Requirements for NIMs
+## NIM Hardware Requirements:
 
 NeMo Retriever Library supports the following GPU hardware given system constraints in the table:
 
