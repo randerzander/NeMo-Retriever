@@ -28,21 +28,9 @@ This includes the following:
 
 ## Hardware Requirements
 
-NeMo Retriever Library supports the following GPU hardware.
+NeMo Retriever Library supports the following GPU hardware:
 
-- [RTX Pro 6000 Blackwell Server Edition](https://www.nvidia.com/en-us/data-center/rtx-pro-6000-blackwell-server-edition/)
-- [DGX B200](https://www.nvidia.com/en-us/data-center/dgx-b200/)
-- [H200 NVL](https://www.nvidia.com/en-us/data-center/h200/)
-- [H100 Tensor Core GPU](https://www.nvidia.com/en-us/data-center/h100/)
-- [A100 Tensor Core GPU](https://www.nvidia.com/en-us/data-center/a100/)
-- [A10G Tensor Core GPU](https://aws.amazon.com/ec2/instance-types/g5/)
-- [L40S](https://www.nvidia.com/en-us/data-center/l40s/)
-- [RTX PRO 4500 Blackwell](https://www.nvidia.com/en-us/products/workstations/professional-desktop-gpus/rtx-pro-4500/)
-
-
-The following are the hardware requirements to run NeMo Retriever Library.
-
-|Feature         | GPU Option                | RTX Pro 6000  | B200          | H200 NVL      | H100        | A100 80GB   | A100 40GB     | A10G          | L40S   | RTX PRO 4500 Blackwell |
+|Feature         | GPU Option                | [RTX Pro 6000](https://www.nvidia.com/en-us/data-center/rtx-pro-6000-blackwell-server-edition/)  | [B200](https://www.nvidia.com/en-us/data-center/dgx-b200/)          | [H200 NVL](https://www.nvidia.com/en-us/data-center/h200/)      | [H100](https://www.nvidia.com/en-us/data-center/h100/)        | [A100 80GB](https://www.nvidia.com/en-us/data-center/a100/)   | A100 40GB     | [A10G](https://aws.amazon.com/ec2/instance-types/g5/)          | L40S   | [RTX PRO 4500 Blackwell](https://www.nvidia.com/en-us/products/workstations/professional-desktop-gpus/rtx-pro-4500/) |
 |----------------|---------------------------|---------------|---------------|---------------|-------------|-------------|---------------|---------------|--------|------------------------|
 | GPU            | Memory                    | 96GB          | 180GB         | 141GB         | 80GB        | 80GB        | 40GB          | 24GB          | 48GB   | 32GB GDDR7 (GB203)     |
 | Core Features  | Total GPUs                | 1             | 1             | 1             | 1           | 1           | 1             | 1             | 1      | 1                      |
