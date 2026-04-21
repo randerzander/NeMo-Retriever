@@ -11,23 +11,20 @@ The core pipeline models include the following:
 - [llama-nemotron-embed-1b-v2](https://huggingface.co/nvidia/llama-nemotron-embed-vl-1b-v2) — Embedding model for converting text chunks into vectors.
 - [nemotron-page-elements-v3](https://huggingface.co/nvidia/nemotron-page-elements-v3) — Detects and classifies images on a page as a table, chart or infographic.
 - [nemotron-table-structure-v1](https://huggingface.co/nvidia/nemotron-table-structure-v1) — Detects rows, columns, and cells within a table to preserve table structure and convert to Markdown format. 
-- nemotron-ocr-v2 — Image OCR model to detect and extract text from images.
-- [llama-nemotron-rerank-vl-1b-v2](https://huggingface.co/nvidia/llama-nemotron-rerank-vl-1b-v2)
+- [nemotron-ocr-v2](https://huggingface.co/nvidia/nemotron-ocr-v2) — Image OCR model to detect and extract text from images.
 
 Advanced features require additional GPU support and disk space. 
 This includes the following:
 
-- Audio extraction - [parakeet-1-1b-ctc-en-us](https://huggingface.co/nvidia/parakeet-ctc-1.1b) — Use the [Parakeet CTC English (en-US) ASR NIM](https://docs.nvidia.com/nim/speech/latest/asr/deploy-asr-models/parakeet-ctc-en-us.html) (`nvcr.io/nim/nvidia/parakeet-1-1b-ctc-en-us`) for processing audio files. For more information, refer to [Audio Processing](audio.md).
-- Advanced visual parsing — Use [nemotron-parse](https://docs.nvidia.com/nim/vision-language-models/latest/examples/nemotron-parse/overview.html), which adds state-of-the-art text and table extraction. For more information, refer to [Advanced Visual Parsing ](nemoretriever-parse.md).
-- VLM — Use [nemotron-nano-12b-v2-vl](https://build.nvidia.com/nvidia/nemotron-nano-12b-v2-vl/modelcard) for experimental image captioning of unstructured images. 
+- [parakeet-1-1b-ctc-en-us](https://huggingface.co/nvidia/parakeet-ctc-1.1b) for transcript extraction from [audio and video](audio.md).
+- [nemotron-parse](https://huggingface.co/nvidia/NVIDIA-Nemotron-Parse-v1.2) - for [maximally accurate table extraction](nemoretriever-parse.md).
+- [nemotron-nano-12b-v2-vl](https://huggingface.co/nvidia/NVIDIA-Nemotron-Nano-12B-v2) for image captioning of unstructured (not charts, tables, infographics) images. 
     
     !!! note
     
         While nemotron-nano-12b-v2-vl is the default VLM, you can configure and use other vision language models for image captioning based on your specific use case requirements. For more information, refer to [Extract Captions from Images](python-api-reference.md#extract-captions-from-images).
 
-- Reranker — Use [llama-3.2-nv-rerankqa-1b-v2](https://build.nvidia.com/nvidia/llama-3.2-nv-rerankqa-1b-v2) for improved retrieval accuracy.
-
-
+- [llama-nemotron-rerank-vl-1b-v2](https://huggingface.co/nvidia/llama-nemotron-rerank-vl-1b-v2) for improved retrieval accuracy.
 
 ## Hardware Requirements
 
