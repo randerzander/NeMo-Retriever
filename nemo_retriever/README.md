@@ -1,3 +1,5 @@
+Dumb test change
+
 # Quick Start for NeMo Retriever Library
 
 NeMo Retriever Library is a retrieval-augmented generation (RAG) ingestion pipeline for documents that can parse text, tables, charts, and infographics. NeMo Retriever Library parses documents, creates embeddings, optionally stores embeddings in LanceDB, and performs recall evaluation.
